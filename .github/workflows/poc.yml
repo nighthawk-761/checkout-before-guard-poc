@@ -1,0 +1,45 @@
+name: checkout-before-guard-poc
+
+on:
+  pull_request_target:
+    types: [synchronize]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  control-current-head:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Control - current fork head must be rejected
+        id: checkout
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Assert that the control was blocked
+        env:
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+        run: test "$CHECKOUT_OUTCOME" = failure
+
+  bypass-previous-head:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout previous fork head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.before }}
+          persist-credentials: false
+
+      - name: Execute the checked-out repository script
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          CURRENT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/poc/run.sh
+
